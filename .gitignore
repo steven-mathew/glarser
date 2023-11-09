@@ -1,0 +1,10 @@
+*.iml
+*.o
+*.plt
+*.swo
+*.swp
+*~
+*.beam
+*.ez
+build
+erl_crash.dump

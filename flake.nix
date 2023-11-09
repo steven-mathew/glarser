@@ -13,7 +13,7 @@
     {
       devShells = forEachSupportedSystem ({ pkgs }: {
         default = pkgs.mkShell {
-          packages = with pkgs; [ gleam ];
+          packages = with pkgs; [ gleam erlang ];
         };
       });
     };
