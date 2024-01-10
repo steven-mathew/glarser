@@ -1,8 +1,4 @@
-import gleam/float
 import gleam/function
-import gleam/int
-import gleam/list.{Continue, Stop}
-import gleam/option.{None, Some}
 import gleam/pair
 import gleam/result
 import gleam/string
@@ -12,11 +8,15 @@ pub opaque type Input {
 }
 
 pub type Error {
-  ParseError(String, Int)
+  ParseError(Input)
 }
 
-pub fn new(source: String) -> Input {
+pub fn make_input(source: String) -> Input {
   Input(source: source, position: 0)
+}
+
+fn make_input_with_position(source: String, position: Int) -> Input {
+  Input(source: source, position: position)
 }
 
 pub opaque type Parser(a) {
@@ -46,6 +46,10 @@ pub fn then(parser: Parser(a), f: fn(a) -> Parser(b)) -> Parser(b) {
 
 pub fn wrap(value: a) -> Parser(a) {
   Parser(fn(input) { Ok(#(value, input)) })
+}
+
+pub fn fail(error: Error) -> Parser(a) {
+  Parser(fn(_) { Error(error) })
 }
 
 pub fn bind(parser: Parser(a), f: fn(a) -> Parser(b)) -> Parser(b) {
@@ -97,15 +101,6 @@ pub fn map2(
   parser_b: Parser(b),
   f: fn(a, b) -> c,
 ) -> Parser(c) {
-  // then(parser_a,
-  //         fn(a) {
-  //            map(parser_b,
-  //                 fn(b) {
-  //                     f(a, b)
-  //                 })
-  //         }
-  //   )
-
   use input <- Parser()
 
   run_aux(parser_a, input)
@@ -115,5 +110,37 @@ pub fn map2(
     let g = fn(a) { map(parser_b, fn(b) { f(a, b) }) }
 
     run_aux(g(value), next_input)
+  })
+}
+
+pub fn keep(mapper: Parser(fn(a) -> b), parser: Parser(a)) -> Parser(b) {
+  map2(mapper, parser, fn(f, a) { f(a) })
+}
+
+pub fn drop(keeper: Parser(a), ignorer: Parser(b)) -> Parser(a) {
+  map2(keeper, ignorer, fn(a, _) { a })
+}
+
+pub fn succeed2(f: fn(a, b) -> c) -> Parser(fn(a) -> fn(b) -> c) {
+  function.curry2(f)
+  |> wrap
+}
+
+pub fn parse_while(f: fn(String) -> Bool) -> Parser(String) {
+  let recurse = fn(c) {
+    parse_while(f)
+    |> map(string.append(c, _))
+  }
+
+  Parser(fn(input) {
+    case string.pop_grapheme(input.source) {
+      Ok(#(char, rest)) ->
+        case f(char) {
+          True -> run_aux(recurse(char), make_input_with_position(rest, input.position + 1))
+          False -> Ok(#("", input))
+        }
+
+      Error(Nil) -> Ok(#("", make_input_with_position("", input.position)))
+    }
   })
 }
